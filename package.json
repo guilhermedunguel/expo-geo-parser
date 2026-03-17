@@ -1,0 +1,43 @@
+{
+  "name": "expo-geo-parser",
+  "version": "0.1.0",
+  "description": "A high-performance Expo native module for parsing geospatial files like KML, KMZ, and other formats, extracting polygons, markers, and spatial data efficiently on iOS and Android.",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "scripts": {
+    "build": "expo-module build",
+    "clean": "expo-module clean",
+    "lint": "expo-module lint",
+    "test": "expo-module test",
+    "prepare": "expo-module prepare",
+    "prepublishOnly": "expo-module prepublishOnly",
+    "expo-module": "expo-module",
+    "open:ios": "xed example/ios",
+    "open:android": "open -a \"Android Studio\" example/android"
+  },
+  "keywords": [
+    "react-native",
+    "expo",
+    "expo-geo-parser",
+    "ExpoGeoParser"
+  ],
+  "repository": "https://github.com/guilhermedunguel/expo-geo-parser",
+  "bugs": {
+    "url": "https://github.com/guilhermedunguel/expo-geo-parser/issues"
+  },
+  "author": "Guilherme Dunguel <guilhermedunguel@gmail.com> (https://github.com/guilhermedunguel)",
+  "license": "MIT",
+  "homepage": "https://github.com/guilhermedunguel/expo-geo-parser#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "@types/react": "~19.1.1",
+    "expo-module-scripts": "^55.0.2",
+    "expo": "^55.0.5",
+    "react-native": "0.82.1"
+  },
+  "peerDependencies": {
+    "expo": "*",
+    "react": "*",
+    "react-native": "*"
+  }
+}

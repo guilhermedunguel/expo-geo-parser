@@ -1,0 +1,9 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["ExpoGeoParserModule"]
+  },
+  "android": {
+    "modules": ["expo.modules.geoparser.ExpoGeoParserModule"]
+  }
+}
