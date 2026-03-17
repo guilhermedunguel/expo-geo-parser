@@ -1,3 +1,5 @@
+⚠️ This package is currently experimental and will have issues. Install on your own risk.
+
 # expo-geo-parser
 
 A high-performance Expo native module for parsing geospatial files like KML, KMZ, and other formats, extracting polygons, markers, and spatial data efficiently on iOS and Android.
