@@ -1,11 +1,9 @@
 import { NativeModule, requireNativeModule } from 'expo';
 
-import { ExpoGeoParserModuleEvents } from './ExpoGeoParser.types';
+import { ExpoGeoParserEvents } from './ExpoGeoParser.types';
 
-declare class ExpoGeoParserModule extends NativeModule<ExpoGeoParserModuleEvents> {
-  PI: number;
-  hello(): string;
-  setValueAsync(value: string): Promise<void>;
+declare class ExpoGeoParserModule extends NativeModule<ExpoGeoParserEvents> {
+  hello: () => string;
 }
 
 // This call loads the native module object from the JSI.
