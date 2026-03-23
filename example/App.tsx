@@ -47,8 +47,8 @@ export default function App() {
           style={styles.list}
           data={result.features}
           keyExtractor={(_, i) => String(i)}
-          initialNumToRender={20}
-          windowSize={10}
+          // initialNumToRender={20}
+          // windowSize={10}
           contentContainerStyle={styles.listContent}
           ListHeaderComponent={
             <View style={[styles.card, styles.headerCard]}>
