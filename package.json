@@ -1,6 +1,6 @@
 {
   "name": "@dunguel/expo-geo-parser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A high-performance Expo native module for parsing geospatial files like KML, KMZ, and other formats, extracting polygons, markers, and spatial data efficiently on iOS and Android.",
   "main": "build/index.js",
   "types": "build/index.d.ts",

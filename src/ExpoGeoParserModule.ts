@@ -1,44 +1,11 @@
 import { NativeModule, requireNativeModule } from "expo";
+import type { File, FeatureCollection, ParseFeaturesEvent } from "./ExpoGeoParser.types";
 
-export type GeoFileType = "kml" | "kmz" | "zip" | "geojson" | "json" | "unknown";
-
-export type DetectedFileType = {
-  uri: string;
-  fileName?: string | null;
-  extension?: string | null;
-  type: GeoFileType;
-  uti?: string | null;
-};
-
-export type GeoJSONGeometry = {
-  type: string;
-  coordinates?: unknown;
-  geometries?: GeoJSONGeometry[];
-};
-
-export type GeoJSONFeature = {
-  type: "Feature";
-  id?: string | number;
-  geometry: GeoJSONGeometry;
-  properties: Record<string, unknown>;
-};
-
-export type GeoJSONFeatureCollection = {
-  type: "FeatureCollection";
-  name?: string;
-  description?: string;
-  sourceType?: GeoFileType;
-  features: GeoJSONFeature[];
-};
-
-export type ParseFeaturesEvent = {
-  features: GeoJSONFeature[];
-  isLast: boolean;
-};
+export type { GeoFileType, File, Feature, Geometry, FeatureCollection, ParseFeaturesEvent } from "./ExpoGeoParser.types";
 
 declare class ExpoGeoParserModule extends NativeModule {
-  detectFileType(uri: string): DetectedFileType;
-  parseFile(uri: string): Promise<Omit<GeoJSONFeatureCollection, "features">>;
+  detectFileType(uri: string): File;
+  parseFile(uri: string): Promise<Omit<FeatureCollection, "features">>;
   addListener(
     event: "onParseFeatures",
     listener: (event: ParseFeaturesEvent) => void
