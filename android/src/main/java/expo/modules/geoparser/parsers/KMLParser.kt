@@ -28,6 +28,9 @@ class KMLParser(
     private var currentFeatureName = ""
     private var currentFeatureDescription = ""
     private var currentFeatureStyleUrl = ""
+    private var currentExtendedData = linkedMapOf<String, Any?>()
+    private var currentExtendedDataName = ""
+    private var inExtendedData = false
     private var currentGeometryType: String? = null
 
     private var pointCoord = listOf<Double>()
@@ -93,9 +96,14 @@ class KMLParser(
                 currentFeatureName = ""
                 currentFeatureDescription = ""
                 currentFeatureStyleUrl = ""
+                currentExtendedData = linkedMapOf()
+                currentExtendedDataName = ""
+                inExtendedData = false
                 currentGeometryType = null
                 multiGeometries = mutableListOf()
             }
+            "ExtendedData"   -> if (inPlacemark) inExtendedData = true
+            "Data", "SimpleData" -> if (inPlacemark && inExtendedData) currentExtendedDataName = attrs?.getValue("name") ?: ""
             "Point"          -> { currentGeometryType = "Point";      pointCoord = listOf() }
             "LineString"     -> { currentGeometryType = "LineString"; lineCoords = listOf() }
             "LinearRing"     -> currentRing = listOf()
@@ -117,18 +125,33 @@ class KMLParser(
     override fun endElement(uri: String?, localName: String?, qName: String?) {
         val name = stripped(localName ?: qName ?: "")
         val text = textBuffer.toString().trim()
+        val parent = elementStack.dropLast(1).lastOrNull() ?: ""
         textBuffer.clear()
         if (elementStack.isNotEmpty()) elementStack.removeAt(elementStack.lastIndex)
 
         when (name) {
             "Document"   -> documentDepth--
             "name"       -> when {
-                inPlacemark -> currentFeatureName = text
-                documentDepth > 0 && !documentMetaCaptured -> { documentName = text; documentMetaCaptured = true }
+                inPlacemark && parent == "Placemark" -> currentFeatureName = text
+                isCollectionContainer(parent) && !documentMetaCaptured -> {
+                    documentName = text
+                    documentMetaCaptured = true
+                }
             }
             "description" -> when {
-                inPlacemark -> currentFeatureDescription = text
-                documentDepth > 0 && documentDescription.isEmpty() -> documentDescription = text
+                inPlacemark && parent == "Placemark" -> currentFeatureDescription = text
+                isCollectionContainer(parent) && documentDescription.isEmpty() -> documentDescription = text
+            }
+            "ExtendedData" -> inExtendedData = false
+            "Data" -> currentExtendedDataName = ""
+            "value" -> if (inPlacemark && inExtendedData && currentExtendedDataName.isNotEmpty()) {
+                currentExtendedData[currentExtendedDataName] = parsePropertyValue(text)
+            }
+            "SimpleData" -> {
+                if (inPlacemark && inExtendedData && currentExtendedDataName.isNotEmpty()) {
+                    currentExtendedData[currentExtendedDataName] = parsePropertyValue(text)
+                }
+                currentExtendedDataName = ""
             }
             "Style"      -> { currentStyleId?.let { styles[it] = buildingStyle }; currentStyleId = null }
             "StyleMap"   -> { inStyleMap = false; currentStyleMapId = null }
@@ -158,7 +181,6 @@ class KMLParser(
             "scale"      -> if (inIconStyle) text.toDoubleOrNull()?.let { buildingStyle.iconScale = it }
             "coordinates" -> {
                 val coords = parseCoordinates(text)
-                val parent = elementStack.lastOrNull() ?: ""
                 when (parent) {
                     "Point"      -> pointCoord = coords.firstOrNull() ?: listOf()
                     "LineString" -> lineCoords = coords
@@ -195,6 +217,9 @@ class KMLParser(
         return if (idx >= 0) name.substring(idx + 1) else name
     }
 
+    private fun isCollectionContainer(name: String): Boolean =
+        name == "Document" || name == "Folder"
+
     private fun kmlColorToCSS(kml: String): String {
         val s = kml.trim().lowercase()
         if (s.length != 8) return "#000000"
@@ -208,6 +233,16 @@ class KMLParser(
                 val parts = tuple.split(",").mapNotNull { it.toDoubleOrNull() }
                 if (parts.size >= 2) parts else null
             }
+
+    private fun parsePropertyValue(text: String): Any {
+        val trimmed = text.trim()
+        return when {
+            trimmed.equals("true", ignoreCase = true) -> true
+            trimmed.equals("false", ignoreCase = true) -> false
+            NUMERIC_SCALAR.matches(trimmed) -> trimmed.toDouble()
+            else -> trimmed
+        }
+    }
 
     private fun buildGeometry(type: String): Map<String, Any?>? = when (type) {
         "Point"      -> if (pointCoord.isNotEmpty()) mapOf("type" to "Point", "coordinates" to pointCoord) else null
@@ -227,17 +262,14 @@ class KMLParser(
     }
 
     private fun finalizeFeature() {
-        val geometry: Map<String, Any?> = if (currentGeometryType == "MultiGeometry") {
-            if (multiGeometries.isEmpty()) return
-            mapOf("type" to "GeometryCollection", "geometries" to multiGeometries.toList())
-        } else {
-            val gType = currentGeometryType ?: return
-            buildGeometry(gType) ?: return
-        }
-
         val properties = mutableMapOf<String, Any?>()
         if (currentFeatureName.isNotEmpty()) properties["name"] = currentFeatureName
-        if (currentFeatureDescription.isNotEmpty()) properties["description"] = currentFeatureDescription
+        properties.putAll(currentExtendedData)
+        if (currentFeatureDescription.isNotEmpty()) {
+            val extracted = extractDescriptionAttributes(currentFeatureDescription)
+            extracted.attributes.forEach { (key, value) -> properties.putIfAbsent(key, value) }
+            extracted.description?.let { properties["description"] = it }
+        }
         if (currentFeatureStyleUrl.isNotEmpty()) {
             properties["styleId"] = currentFeatureStyleUrl
             resolveStyle(currentFeatureStyleUrl)?.takeIf { !it.isEmpty }?.let {
@@ -245,19 +277,76 @@ class KMLParser(
             }
         }
 
-        val feature = mutableMapOf<String, Any?>(
-            "type" to "Feature",
-            "geometry" to geometry,
-            "properties" to properties
-        )
-        currentFeatureId?.takeIf { it.isNotEmpty() }?.let { feature["id"] = it }
+        val geometries: List<Map<String, Any?>> = if (currentGeometryType == "MultiGeometry") {
+            if (multiGeometries.isEmpty()) return
+            multiGeometries.toList()
+        } else {
+            val gType = currentGeometryType ?: return
+            listOf(buildGeometry(gType) ?: return)
+        }
 
-        featureBuffer.add(feature)
-        if (featureBuffer.size >= batchSize) {
-            onFeatures(featureBuffer.toList(), false)
-            featureBuffer.clear()
+        geometries.forEachIndexed { index, geometry ->
+            val feature = mutableMapOf<String, Any?>(
+                "type" to "Feature",
+                "geometry" to geometry,
+                "properties" to properties
+            )
+            splitFeatureId(currentFeatureId, index, geometries.size)?.let { feature["id"] = it }
+
+            featureBuffer.add(feature)
+            if (featureBuffer.size >= batchSize) {
+                onFeatures(featureBuffer.toList(), false)
+                featureBuffer.clear()
+            }
         }
     }
+
+    private fun splitFeatureId(baseId: String?, index: Int, total: Int): String? {
+        if (baseId.isNullOrEmpty()) return null
+        if (total <= 1) return baseId
+        return "${baseId}_${index + 1}"
+    }
+
+    private fun extractDescriptionAttributes(description: String): ExtractedDescription {
+        val textDescription = stripHtml(description)
+        if (!description.contains("<table") || !description.contains("<th") || !description.contains("<td")) {
+            return ExtractedDescription(linkedMapOf(), textDescription.ifEmpty { null })
+        }
+
+        val attributes = linkedMapOf<String, Any?>()
+        for (match in HTML_ATTRIBUTE_ROW.findAll(description)) {
+            val key = stripHtml(match.groupValues[1])
+            if (key.isEmpty()) continue
+            val value = stripHtml(match.groupValues[2])
+            attributes[key] = parsePropertyValue(value)
+        }
+
+        val cleanedDescription =
+            if (textDescription.isNotEmpty() && !(attributes.isNotEmpty() && textDescription == "Attributes")) {
+                textDescription
+            } else {
+                null
+            }
+
+        return ExtractedDescription(attributes, cleanedDescription)
+    }
+
+    private fun stripHtml(value: String): String =
+        value
+            .replace(HTML_TAG, " ")
+            .replace("&nbsp;", " ")
+            .replace("&amp;", "&")
+            .replace("&lt;", "<")
+            .replace("&gt;", ">")
+            .replace("&quot;", "\"")
+            .replace("&#39;", "'")
+            .replace(WHITESPACE, " ")
+            .trim()
+
+    private data class ExtractedDescription(
+        val attributes: LinkedHashMap<String, Any?>,
+        val description: String?
+    )
 }
 
 private data class StyleInfo(
@@ -281,3 +370,11 @@ private data class StyleInfo(
         return d
     }
 }
+
+private val HTML_TAG = Regex("<[^>]+>")
+private val HTML_ATTRIBUTE_ROW = Regex(
+    "<th[^>]*>\\s*(.*?)\\s*</th>\\s*<td[^>]*>\\s*(.*?)\\s*</td>",
+    setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL)
+)
+private val WHITESPACE = Regex("\\s+")
+private val NUMERIC_SCALAR = Regex("^-?(0|[1-9]\\d*)(\\.\\d+)?$")
