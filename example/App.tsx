@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { Button, FlatList, StyleSheet, Text, View } from "react-native";
 import * as DocumentPicker from "expo-document-picker";
-import { parseFile, type GeoJSONFeature, type GeoJSONFeatureCollection } from "expo-geo-parser";
+import { parseFile, type Feature, type FeatureCollection } from "expo-geo-parser";
 
 export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<GeoJSONFeatureCollection | null>(null);
+  const [result, setResult] = useState<FeatureCollection | null>(null);
   const [elapsed, setElapsed] = useState<number | null>(null);
 
   const pickFile = async () => {
@@ -65,7 +65,7 @@ export default function App() {
   );
 }
 
-function FeatureCard({ feature: f, index: i }: { feature: GeoJSONFeature; index: number }) {
+function FeatureCard({ feature: f, index: i }: { feature: Feature; index: number }) {
   const name = f.properties?.name as string | undefined;
   const description = f.properties?.description as string | undefined;
 
@@ -79,17 +79,17 @@ function FeatureCard({ feature: f, index: i }: { feature: GeoJSONFeature; index:
   );
 }
 
-function CoordSummary({ feature: f }: { feature: GeoJSONFeature }) {
+function CoordSummary({ feature: f }: { feature: Feature }) {
   const { type, coordinates } = f.geometry ?? {};
   let summary = "";
 
   if (type === "Point" && Array.isArray(coordinates)) {
-    const c = coordinates as number[];
+    const c = coordinates as unknown as number[];
     summary = `${c[0]?.toFixed(6)}, ${c[1]?.toFixed(6)}`;
   } else if (type === "LineString" && Array.isArray(coordinates)) {
     summary = `${(coordinates as number[][]).length} pts`;
   } else if (type === "Polygon" && Array.isArray(coordinates)) {
-    const rings = coordinates as number[][][];
+    const rings = coordinates as unknown as number[][][];
     const holes = rings.length - 1;
     summary = `${rings[0]?.length ?? 0} pts${holes > 0 ? `, ${holes} hole${holes > 1 ? "s" : ""}` : ""}`;
   } else if (type?.startsWith("Multi") && Array.isArray(coordinates)) {
