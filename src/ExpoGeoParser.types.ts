@@ -8,17 +8,59 @@ export type File = {
   uti?: string | null;
 };
 
-export type Feature = {
-  type: "Feature";
-  id?: string | number;
-  geometry: Geometry;
-  properties: Record<string, unknown>;
+// GeoJSON-compliant geometry types (RFC 7946)
+
+export type Position = number[]; // [longitude, latitude, ?altitude]
+
+export type Point = {
+  type: "Point";
+  coordinates: Position;
 };
 
-export type Geometry = {
-  type: string;
-  coordinates?: number[][];
-  geometries?: Geometry[];
+export type LineString = {
+  type: "LineString";
+  coordinates: Position[];
+};
+
+export type Polygon = {
+  type: "Polygon";
+  coordinates: Position[][];
+};
+
+export type MultiPoint = {
+  type: "MultiPoint";
+  coordinates: Position[];
+};
+
+export type MultiLineString = {
+  type: "MultiLineString";
+  coordinates: Position[][];
+};
+
+export type MultiPolygon = {
+  type: "MultiPolygon";
+  coordinates: Position[][][];
+};
+
+export type GeometryCollection = {
+  type: "GeometryCollection";
+  geometries: Geometry[];
+};
+
+export type Geometry =
+  | Point
+  | LineString
+  | Polygon
+  | MultiPoint
+  | MultiLineString
+  | MultiPolygon
+  | GeometryCollection;
+
+export type Feature = {
+  type: "Feature";
+  id?: string;
+  geometry: Geometry;
+  properties: Record<string, unknown>;
 };
 
 export type FeatureCollection = {

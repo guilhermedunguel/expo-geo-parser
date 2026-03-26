@@ -84,6 +84,9 @@ private extension ExpoGeoParserModule {
       throw GeoParserError.invalidURI(uri)
     }
 
+    let accessing = url.startAccessingSecurityScopedResource()
+    defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+
     let info = detectFileType(from: url)
 
     if info.type == "kmz" || info.type == "zip" {
