@@ -60,7 +60,9 @@ class KMLParser(
     companion object {
         fun parse(input: InputStream, sourceType: String, onFeatures: (List<Map<String, Any?>>, Boolean) -> Unit): Map<String, Any?> {
             val handler = KMLParser(onFeatures = onFeatures)
-            val factory = SAXParserFactory.newInstance().apply { isNamespaceAware = true }
+            // Some KML files in the wild contain prefixed tags without proper xmlns declarations.
+            // Parsing without namespace enforcement keeps the stream parser resilient on Android.
+            val factory = SAXParserFactory.newInstance().apply { isNamespaceAware = false }
             try {
                 factory.newSAXParser().parse(input, handler)
             } catch (e: Exception) {
@@ -77,14 +79,14 @@ class KMLParser(
     }
 
     override fun startElement(uri: String?, localName: String?, qName: String?, attrs: Attributes?) {
-        val name = stripped(localName ?: qName ?: "")
+        val name = resolveElementName(localName, qName)
         elementStack.add(name)
         textBuffer.clear()
 
         when (name) {
             "Document"       -> documentDepth++
-            "Style"          -> { currentStyleId = attrs?.getValue("id"); buildingStyle = StyleInfo() }
-            "StyleMap"       -> { inStyleMap = true; currentStyleMapId = attrs?.getValue("id") }
+            "Style"          -> { currentStyleId = getAttribute(attrs, "id"); buildingStyle = StyleInfo() }
+            "StyleMap"       -> { inStyleMap = true; currentStyleMapId = getAttribute(attrs, "id") }
             "Pair"           -> if (inStyleMap) { inPair = true; currentPairKey = ""; currentPairStyleUrl = "" }
             "LineStyle"      -> inLineStyle = true
             "PolyStyle"      -> inPolyStyle = true
@@ -92,7 +94,7 @@ class KMLParser(
             "Icon"           -> if (inIconStyle) inIconHref = true
             "Placemark"      -> {
                 inPlacemark = true
-                currentFeatureId = attrs?.getValue("id")
+                currentFeatureId = getAttribute(attrs, "id")
                 currentFeatureName = ""
                 currentFeatureDescription = ""
                 currentFeatureStyleUrl = ""
@@ -103,7 +105,7 @@ class KMLParser(
                 multiGeometries = mutableListOf()
             }
             "ExtendedData"   -> if (inPlacemark) inExtendedData = true
-            "Data", "SimpleData" -> if (inPlacemark && inExtendedData) currentExtendedDataName = attrs?.getValue("name") ?: ""
+            "Data", "SimpleData" -> if (inPlacemark && inExtendedData) currentExtendedDataName = getAttribute(attrs, "name") ?: ""
             "Point"          -> { currentGeometryType = "Point";      pointCoord = listOf() }
             "LineString"     -> { currentGeometryType = "LineString"; lineCoords = listOf() }
             "LinearRing"     -> currentRing = listOf()
@@ -123,7 +125,7 @@ class KMLParser(
     }
 
     override fun endElement(uri: String?, localName: String?, qName: String?) {
-        val name = stripped(localName ?: qName ?: "")
+        val name = resolveElementName(localName, qName)
         val text = textBuffer.toString().trim()
         val parent = elementStack.dropLast(1).lastOrNull() ?: ""
         textBuffer.clear()
@@ -215,6 +217,25 @@ class KMLParser(
     private fun stripped(name: String): String {
         val idx = name.lastIndexOf(':')
         return if (idx >= 0) name.substring(idx + 1) else name
+    }
+
+    private fun resolveElementName(localName: String?, qName: String?): String {
+        val raw = localName?.takeIf { it.isNotEmpty() } ?: qName ?: ""
+        return stripped(raw)
+    }
+
+    private fun getAttribute(attrs: Attributes?, name: String): String? {
+        if (attrs == null) return null
+        attrs.getValue(name)?.let { return it }
+
+        for (index in 0 until attrs.length) {
+            val local = attrs.getLocalName(index)
+            if (local == name) return attrs.getValue(index)
+
+            val qName = attrs.getQName(index)
+            if (stripped(qName) == name) return attrs.getValue(index)
+        }
+        return null
     }
 
     private fun isCollectionContainer(name: String): Boolean =
