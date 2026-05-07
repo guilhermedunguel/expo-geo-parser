@@ -15,11 +15,51 @@ export type Feature = {
   properties: Record<string, unknown>;
 };
 
-export type Geometry = {
-  type: string;
-  coordinates?: number[][];
-  geometries?: Geometry[];
+export type Position = [number, number, ...number[]];
+
+export type PointGeometry = {
+  type: "Point";
+  coordinates: Position;
 };
+
+export type MultiPointGeometry = {
+  type: "MultiPoint";
+  coordinates: Position[];
+};
+
+export type LineStringGeometry = {
+  type: "LineString";
+  coordinates: Position[];
+};
+
+export type MultiLineStringGeometry = {
+  type: "MultiLineString";
+  coordinates: Position[][];
+};
+
+export type PolygonGeometry = {
+  type: "Polygon";
+  coordinates: Position[][];
+};
+
+export type MultiPolygonGeometry = {
+  type: "MultiPolygon";
+  coordinates: Position[][][];
+};
+
+export type GeometryCollectionGeometry = {
+  type: "GeometryCollection";
+  geometries: Geometry[];
+};
+
+export type Geometry =
+  | PointGeometry
+  | MultiPointGeometry
+  | LineStringGeometry
+  | MultiLineStringGeometry
+  | PolygonGeometry
+  | MultiPolygonGeometry
+  | GeometryCollectionGeometry;
 
 export type FeatureCollection = {
   type: "FeatureCollection";
